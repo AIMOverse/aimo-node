@@ -1,52 +1,51 @@
-# AIMO Node: Decentralized OpenRouter - Product Requirements Document
+# AIMO Node: Decentralized OpenRouter – Product Requirements Document (Streaming-Optimized)
 
 ## Executive Summary
 
-AIMO Node is a decentralized AI model routing service that enables direct peer-to-peer communication between AI service consumers and providers. Unlike centralized platforms, AIMO creates a distributed network where nodes act as message relays using libp2p gossipsub protocol, facilitating real-time chat completion requests and responses with streaming support.
-
-**Key Value Proposition**: Eliminate intermediary fees, reduce latency, and provide censorship-resistant AI model access through decentralized infrastructure.
+AIMO Node is a decentralized AI model routing service enabling direct, real-time, peer-to-peer communication between AI consumers and providers. The system is designed for low-latency, high-throughput streaming of model responses, supporting both chunked and continuous data delivery. The transport layer is modular: gossipsub, direct libp2p streams, or other protocols may be used as appropriate.
 
 ## Product Vision
 
-Create a robust, scalable node service that serves as the foundation for a decentralized AI model marketplace, where service providers can offer their models directly to consumers through a trustless, peer-to-peer network.
+Build a robust, extensible node service that forms the backbone of a decentralized AI model marketplace, with first-class support for streaming, flexible transport, and future extensibility (auth, payments, analytics).
 
 ## Core Requirements
 
 ### 1. System Architecture Overview
 
 ```
-[Client] <---> [AIMO Node] <---> [libp2p gossipsub network] <---> [Service Provider]
+[Client] <--HTTP/SSE/WebSocket--> [AIMO Node] <--libp2p stream/pubsub/other--> [Service Provider]
 ```
 
-**CRITICAL IMPLEMENTATION NOTE FOR AI AGENTS**: This is a single-node implementation focusing on message routing. The node acts as both a relay server and API gateway. Peer discovery is NOT required in this version.
+- The node acts as a relay and API gateway.
+- Streaming is a first-class feature: responses are delivered to clients as soon as data is available.
 
 ### 2. Message Frame Data Structure
 
 #### 2.1 Base Message Frame
+
 ```rust
-// IMPLEMENTATION REQUIREMENT: Use this exact structure
 pub struct MessageFrame {
     pub id: String,              // Unique message identifier (UUID v4)
     pub timestamp: u64,          // Unix timestamp in milliseconds
     pub message_type: MessageType,
     pub sender_id: String,       // Node/client/provider identifier
-    pub target_id: Option<String>, // Optional target for direct routing
+    pub target_id: Option<String>,
     pub payload: MessagePayload,
-    pub signature: Option<String>, // For future authentication
+    pub signature: Option<String>,
 }
 
 pub enum MessageType {
     Request,
     Response,
-    Stream,
+    StreamChunk,
     Error,
     Heartbeat,
 }
 ```
 
-#### 2.2 Generic Request/Response Payload
+#### 2.2 Request/Response/Stream Payloads
+
 ```rust
-// IMPLEMENTATION REQUIREMENT: Generic payload for flexible routing
 pub enum MessagePayload {
     Request(Request),
     Response(Response),
@@ -55,255 +54,79 @@ pub enum MessagePayload {
     Heartbeat(HeartbeatPayload),
 }
 
-
 pub struct Request {
-    pub provider_id: String,     // Target service provider identifier
-    pub endpoint: Option<String>, // Optional specific endpoint
-    pub type: String,           // Request type (e.g., "model_completion", "health_check", etc.)
-    pub content_type: String,    // MIME type of the payload (e.g., "application/json")
-    pub payload: String,         // Raw request data as string
-    pub stream: bool,            // Enable streaming responses
-    pub headers: HashMap<String, String>, // Optional headers for the request
+    pub provider_id: String,
+    pub endpoint: Option<String>,
+    pub type_: String,           // e.g. "model_completion"
+    pub content_type: String,
+    pub payload: String,
+    pub stream: bool,
+    pub headers: HashMap<String, String>,
 }
 
 pub struct Response {
-    pub request_id: String,      // Original request identifier
-    pub status_code: u16,        // HTTP-like status code
-    pub content_type: String,    // MIME type of the response
-    pub payload: String,         // Raw response data as string
-    pub headers: HashMap<String, String>, // Response headers
-    pub is_stream_chunk: bool,   // Indicates if this is part of a stream
-    pub stream_done: bool,       // Indicates stream completion
+    pub request_id: String,
+    pub status_code: u16,
+    pub content_type: String,
+    pub payload: String,
+    pub headers: HashMap<String, String>,
+    pub is_stream_chunk: bool,
+    pub stream_done: bool,
 }
 
 pub struct StreamChunk {
-    pub request_id: String,      // Original request identifier
-    pub chunk_index: u32,        // Sequential chunk number
-    pub content_type: String,    // MIME type of the chunk
-    pub payload: String,         // Raw chunk data as string
-    pub is_final: bool,          // Indicates if this is the last chunk
+    pub request_id: String,
+    pub chunk_index: u32,
+    pub content_type: String,
+    pub payload: String,
+    pub is_final: bool,
 }
 ```
 
-#### 2.3 Error and Heartbeat Payloads
-```rust
-// IMPLEMENTATION REQUIREMENT: Support error reporting and health monitoring
-pub struct ErrorPayload {
-    pub error_code: String,      // Error identifier
-    pub message: String,         // Human-readable error message
-    pub details: Option<String>, // Additional error context
-    pub request_id: Option<String>, // Associated request if applicable
-}
-
-pub struct HeartbeatPayload {
-    pub node_id: String,         // Node identifier
-    pub status: String,          // "healthy", "degraded", "offline"
-    pub load: Option<f32>,       // Current load percentage (0.0-1.0)
-    pub capabilities: Vec<String>, // Supported features
-}
-```
-
-### 3. Request Routing Workflow
+### 3. Streaming Workflow
 
 #### 3.1 Client Request Flow
-```
-IMPLEMENTATION SEQUENCE (CRITICAL FOR AI AGENTS):
 
-1. Client sends generic request to AIMO Node via REST API (any format/content-type)
-2. Node validates basic request structure and extracts provider_id
-3. Node wraps request in MessageFrame with type=Request and GenericRequest payload
-4. Node publishes message to gossipsub topic: "aimo/requests/{provider_id}/{type}"
-5. Node subscribes to response topic: "aimo/responses/{request_id}"
-6. Node waits for response or timeout (30 seconds default)
-7. Node forwards raw response back to client via HTTP with original content-type
-```
+1. Client sends a request (REST, WebSocket, or SSE) to the node, indicating if streaming is desired.
+2. Node validates and wraps the request in a MessageFrame.
+3. Node establishes a stream to the provider (using libp2p direct stream, pubsub, or other).
+4. As the provider sends chunks, the node forwards each chunk to the client immediately (SSE or WebSocket).
+5. Node closes the stream when the provider signals completion.
 
-#### 3.2 Service Provider Flow
-```
-IMPLEMENTATION SEQUENCE (CRITICAL FOR AI AGENTS):
+#### 3.2 Provider Flow
 
-1. Service provider connects directly to the relay (AIMO Node) via gossipsub
-2. Service provider subscribes to its own request topic: "aimo/requests/{provider_id}/*" or "aimo/requests/{provider_id}/{type}"
-3. Service provider receives MessageFrame with Request payload
-4. Service provider extracts payload and processes using its own logic/format
-5. Service provider publishes Response to topic: "aimo/responses/{request_id}"
-6. For streaming: Service provider sends multiple StreamChunk frames to "aimo/responses/{request_id}"
-7. Service provider sends final chunk with is_final=true
-```
+1. Provider connects to the node using a streaming-capable protocol (libp2p direct stream preferred for low-latency).
+2. Provider subscribes to its own request topics or opens a direct stream.
+3. Provider receives requests, processes them, and streams responses chunk-by-chunk.
+4. Provider signals stream completion with a final chunk.
 
-#### 3.3 Streaming Response Handling
-```rust
-// IMPLEMENTATION REQUIREMENT: Support real-time streaming
-pub struct StreamManager {
-    active_streams: HashMap<String, StreamContext>,
-    chunk_buffer: HashMap<String, Vec<StreamChunk>>,
-}
+#### 3.3 Topic/Stream Design
 
-pub struct StreamContext {
-    request_id: String,
-    client_connection: ConnectionId,
-    start_time: u64,
-    chunk_count: u32,
-    is_complete: bool,
-    content_type: String,        // Track content type for proper client response
-}
-```
+- If using pubsub: topics are `"aimo/requests/{provider_id}/{type}"` and `"aimo/responses/{request_id}"`.
+- If using direct streams: node opens a stream per request, and provider streams data back on the same connection.
+- The node should support both, with a preference for direct streams for high-throughput/low-latency use cases.
 
 ### 4. Technical Implementation Requirements
 
-#### 4.1 libp2p gossipsub Configuration
-```rust
-// MANDATORY CONFIGURATION FOR AI AGENTS
-let gossipsub_config = GossipsubConfigBuilder::default()
-    .max_transmit_size(1024 * 1024) // 1MB max message size
-    .heartbeat_interval(Duration::from_secs(1))
-    .validation_mode(ValidationMode::Strict)
-    .message_id_fn(|message| {
-        // Use message frame ID for deduplication
-        MessageId::from(message.data.clone())
-    })
-    .build()
-    .expect("Valid config");
-```
+- **Transport Abstraction**: Implement a transport layer that can use gossipsub, direct libp2p streams, or other protocols.
+- **Streaming API**: Expose HTTP SSE and WebSocket endpoints for clients to receive streamed responses.
+- **Backpressure Handling**: Implement flow control to avoid overwhelming clients or providers.
+- **Chunk Ordering & Reliability**: Ensure chunks are delivered in order and handle retransmission or error signaling if needed.
+- **Max Chunk Size**: Enforce a reasonable max chunk size (e.g., 64KB) to fit within pubsub or stream message limits.
 
-#### 4.2 Topic Naming Convention
-```
-CRITICAL NAMING PATTERN FOR AI AGENTS:
-- Request topics: "aimo/requests/{provider_id}/{type}" (service providers subscribe to their own provider_id and/or type)
-- Response topics: "aimo/responses/{request_id}"
-- Heartbeat topics: "aimo/heartbeat"
-- Error topics: "aimo/errors"
-```
+### 5. Security & Extensibility
 
-#### 4.3 REST API Endpoints
-```rust
-// MANDATORY API ENDPOINTS FOR AI AGENTS TO IMPLEMENT
-POST /v1/request/{provider_id}   // Generic request routing to provider
-GET  /v1/providers              // List available providers
-POST /v1/providers/register     // Provider registration
-GET  /v1/health                 // Node health check
-WS   /v1/stream                 // WebSocket for real-time updates
+- **Authentication**: Pluggable, to be added in future versions.
+- **Rate Limiting**: Per-client and per-provider.
+- **Metrics**: Track stream latency, chunk delivery, and errors.
 
-// LEGACY COMPATIBILITY (OPTIONAL)
-POST /v1/chat/completions       // OpenAI-compatible passthrough
-```
+### 6. Testing
 
-#### 4.4 Error Handling Requirements
-```rust
-// IMPLEMENTATION REQUIREMENT: Comprehensive error handling
-pub enum NodeError {
-    RequestTimeout,
-    ProviderNotFound,
-    InvalidMessageFormat,
-    NetworkError(String),
-    StreamInterrupted,
-    RateLimitExceeded,
-    PayloadTooLarge,
-    UnsupportedContentType,
-}
-```
-
-### 5. Performance and Reliability Requirements
-
-#### 5.1 Latency Targets
-- **Request routing**: < 10ms
-- **End-to-end response**: < 2 seconds (non-streaming)
-- **Stream chunk delivery**: < 100ms
-
-#### 5.2 Throughput Requirements
-- **Concurrent requests**: 1,000+ per node
-- **Message throughput**: 10,000 messages/second
-- **Stream concurrency**: 100+ simultaneous streams
-
-#### 5.3 Reliability Targets
-- **Uptime**: 99.9%
-- **Message delivery**: 99.99% success rate
-- **Request timeout**: 30 seconds maximum
-
-### 6. Security Considerations
-
-#### 6.1 Message Validation
-```rust
-// SECURITY REQUIREMENT FOR AI AGENTS
-pub fn validate_message_frame(frame: &MessageFrame) -> Result<(), ValidationError> {
-    // Validate message size limits (max 1MB payload)
-    // Check timestamp freshness (within 60 seconds)
-    // Verify sender_id format
-    // Validate payload structure (basic envelope validation only)
-    // Content validation is delegated to service providers
-}
-```
-
-#### 6.2 Rate Limiting
-- **Per client**: 100 requests/minute
-- **Per provider**: 1,000 requests/minute
-- **Global node**: 10,000 requests/minute
-
-### 7. Development Phases
-
-#### Phase 1: Core Message Routing (Current)
-- [ ] Implement MessageFrame and generic payload structures
-- [ ] Set up libp2p gossipsub network
-- [ ] Create REST API layer for generic request routing
-- [ ] Implement basic request/response routing with raw payload passthrough
-- [ ] Add streaming support for chunked responses
-
-#### Phase 2: Future Enhancements
-- Decentralized identity authentication
-- Statistics monitoring and analytics
-- On-chain payment processing (Solana)
-- Multi-node peer discovery
-- Advanced load balancing
-
-### 8. Testing Strategy
-
-#### 8.1 Unit Tests
-- Message serialization/deserialization (generic payloads)
-- Request routing logic (provider_id extraction)
-- Stream management (chunk ordering and completion)
-- Error handling scenarios (malformed payloads, timeouts)
-
-#### 8.2 Integration Tests
-- End-to-end request flow (various content types)
-- Multiple provider scenarios (different payload formats)
-- Stream interruption handling (partial chunk delivery)
-- Network partition recovery (message retry logic)
-
-#### 8.3 Performance Tests
-- Load testing with 1,000+ concurrent requests
-- Stream performance under load
-- Memory usage optimization
-- Network bandwidth efficiency
-
-### 9. Implementation Notes for AI Agents
-
-**CRITICAL ATTENTION POINTS**:
-
-1. **Use Rust's tokio async runtime** for all networking operations
-2. **Implement proper connection pooling** for libp2p peers
-3. **Use structured logging** with tracing crate for debugging
-4. **Implement graceful shutdown** handling for all services
-5. **Use configuration management** with environment variables
-6. **Implement comprehensive metrics collection** using prometheus
-7. **Follow Rust naming conventions** and use `cargo fmt` for formatting
-8. **Add proper documentation** with `cargo doc` comments
-9. **Implement proper error propagation** using `Result<T, E>` types
-10. **Use dependency injection** patterns for testability
-
-### 10. Success Metrics
-
-#### 10.1 Technical Metrics
-- Message delivery success rate > 99.99%
-- Average response latency < 500ms
-- Zero message corruption or loss
-- Stream completion rate > 99%
-
-#### 10.2 Business Metrics
-- Number of active providers
-- Request volume growth
-- Client retention rate
-- Network effect expansion
+- Simulate high-concurrency streaming scenarios.
+- Test both pubsub and direct stream transports.
+- Validate chunk ordering, loss, and recovery.
 
 ---
 
-**IMPORTANT FOR AI IMPLEMENTATION**: This PRD serves as the single source of truth for the AIMO Node implementation. All code must strictly adhere to the data structures, workflows, and requirements specified above. Any deviations must be justified and documented.
+**Summary:**  
+This design makes streaming a first-class feature, allows for both pubsub and direct stream transports, and ensures that clients receive streamed responses in real time (e.g., via SSE). The node should default to direct libp2p streams for best performance, but fall back to pubsub if needed for compatibility or broadcast scenarios.
