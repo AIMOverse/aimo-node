@@ -19,14 +19,14 @@ enum TaskFinishBehaviour {
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let Config { api_options } = Config::from_env();
+    let Config { server_options } = Config::from_env();
 
     let mut tasks_js = JoinSet::new();
 
     // The server task
     tasks_js.spawn(async move {
         tracing::info!("API server task created.");
-        server::serve(&api_options).await;
+        server::serve(&server_options).await;
 
         // This should run forever,
         TaskFinishBehaviour::Abort("API server aborted unexpectedly")

@@ -1,17 +1,17 @@
-mod api;
+mod server;
 
-pub use api::*;
 use serde::{Deserialize, Serialize};
+pub use server::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub api_options: ApiOptions,
+    pub server_options: ServerOptions,
 }
 
 impl Config {
     pub fn from_env() -> Self {
         Self {
-            api_options: ApiOptions::from_env(),
+            server_options: ServerOptions::from_env(),
         }
     }
 }

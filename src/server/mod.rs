@@ -3,7 +3,7 @@ use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 
 use crate::{
-    config::ApiOptions,
+    config::ServerOptions,
     server::{
         api::api_v1,
         grpc::grpc_v1,
@@ -15,7 +15,7 @@ mod api;
 mod grpc;
 mod middleware;
 
-pub async fn serve(options: &ApiOptions) {
+pub async fn serve(options: &ServerOptions) {
     let router = Router::new()
         // Setup router groups
         .nest("/api/v1", api_v1())

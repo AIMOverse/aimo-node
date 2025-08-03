@@ -1,9 +1,9 @@
 use http::Method;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::config::ApiOptions;
+use crate::config::ServerOptions;
 
-pub fn cors_layer(_options: &ApiOptions) -> CorsLayer {
+pub fn cors_layer(_options: &ServerOptions) -> CorsLayer {
     // TODO: Make this configurable
 
     CorsLayer::new()

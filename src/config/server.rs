@@ -3,22 +3,22 @@ use std::env;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApiOptions {
+pub struct ServerOptions {
     pub addr: String,
     pub port: u16,
 }
 
-impl Default for ApiOptions {
+impl Default for ServerOptions {
     /// Server runs at `0.0.0.0:8000` by default
     fn default() -> Self {
-        ApiOptions {
+        ServerOptions {
             addr: String::from("0.0.0.0"),
             port: 8000,
         }
     }
 }
 
-impl ApiOptions {
+impl ServerOptions {
     pub fn from_env() -> Self {
         let mut default_opts = Self::default();
 
