@@ -1,14 +1,8 @@
 use axum::Router;
-use tower::ServiceBuilder;
-use tower_http::trace::TraceLayer;
 
 use crate::{
     config::ServerOptions,
-    server::{
-        api::api_v1,
-        grpc::grpc_v1,
-        middleware::{cors_layer, timeout_layer},
-    },
+    server::{api::api_v1, grpc::grpc_v1},
 };
 
 mod api;
@@ -18,16 +12,8 @@ mod middleware;
 pub async fn serve(options: &ServerOptions) {
     let router = Router::new()
         // Setup router groups
-        .nest("/api/v1", api_v1())
-        .nest("/grpc/v1", grpc_v1())
-        // Setup middlewares
-        .layer(
-            ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
-                .layer(TraceLayer::new_for_grpc())
-                .layer(cors_layer(&options))
-                .layer(timeout_layer(&options)),
-        );
+        .nest("/api/v1", api_v1(options))
+        .nest("/grpc/v1", grpc_v1());
 
     tracing::info!("Server instance built");
 
