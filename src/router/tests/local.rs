@@ -17,7 +17,7 @@ async fn echo_delay_service(request: Request, delay_ms: u64) -> serde_json::Resu
 
 #[tokio::test]
 async fn test_local_router() {
-    tracing_subscriber::fmt::init();
+    // tracing_subscriber::fmt::init();
 
     let router = Arc::new(LocalRouter::new());
 
