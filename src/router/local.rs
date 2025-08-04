@@ -1,9 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use tokio::{
-    sync::{Mutex, mpsc},
-    task::JoinSet,
-};
+use tokio::sync::{Mutex, mpsc};
 
 use crate::router::{
     MessagePayload, Request, Response, Router,
@@ -31,57 +28,56 @@ impl LocalRouter {
     }
 
     pub async fn run(&self) {
-        let mut js = JoinSet::new();
         let message_rx = self.message_rx.clone();
         let service_connections_ptr = self.service_connection_handlers.clone();
         let client_connections_ptr = self.client_connection_handlers.clone();
 
-        js.spawn(async move {
-            // Ensure the resource ownership of the runner thread
-            let mut message_rx = message_rx.lock().await;
-            loop {
-                match message_rx.recv().await {
-                    Some(MessagePayload::Request(request)) => {
-                        let service_id = request.service_id.clone();
-                        service_connections_ptr
-                            .lock()
-                            .await
-                            .get(&service_id)
-                            .map(|conn| {
-                                let tx = conn.tx.clone();
-                                tokio::spawn(async move {
-                                    if let Err(err) = tx.send(request).await {
-                                        tracing::warn!("Connection closed: {err}");
-                                    }
-                                });
+        // Ensure the resource ownership of the runner thread
+        let mut message_rx = message_rx.lock().await;
+
+        tracing::info!("Router created and running");
+        loop {
+            match message_rx.recv().await {
+                Some(MessagePayload::Request(request)) => {
+                    let service_id = request.service_id.clone();
+                    service_connections_ptr
+                        .lock()
+                        .await
+                        .get(&service_id)
+                        .map(|conn| {
+                            let tx = conn.tx.clone();
+                            tokio::spawn(async move {
+                                if let Err(err) = tx.send(request).await {
+                                    tracing::warn!("Connection closed: {err}");
+                                }
                             });
-                    }
-                    Some(MessagePayload::Response(response)) => {
-                        let request_id = response.request_id.clone();
-                        client_connections_ptr
-                            .lock()
-                            .await
-                            .get(&request_id)
-                            .map(|conn| {
-                                let tx = conn.tx.clone();
-                                tokio::spawn(async move {
-                                    if let Err(err) = tx.send(response).await {
-                                        tracing::warn!("Connection closed: {err}");
-                                    }
-                                })
-                            });
-                    }
-                    None => {
-                        tracing::error!(
-                            "Failed to receive from incoming_rx: channel closed unexpectedly"
-                        );
-                        break;
-                    }
+                        });
+                }
+                Some(MessagePayload::Response(response)) => {
+                    let request_id = response.request_id.clone();
+                    client_connections_ptr
+                        .lock()
+                        .await
+                        .get(&request_id)
+                        .map(|conn| {
+                            let tx = conn.tx.clone();
+                            tokio::spawn(async move {
+                                if let Err(err) = tx.send(response).await {
+                                    tracing::warn!("Connection closed: {err}");
+                                }
+                            })
+                        });
+                }
+                None => {
+                    tracing::error!(
+                        "Failed to receive from incoming_rx: channel closed unexpectedly"
+                    );
+                    break;
                 }
             }
+        }
 
-            tracing::error!("Router incoming request listener closed unexpectedly");
-        });
+        tracing::error!("Router incoming request listener closed unexpectedly");
     }
 }
 

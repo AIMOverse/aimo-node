@@ -5,5 +5,5 @@ mod stream;
 
 pub mod local;
 
-pub use interface::Router;
+pub use interface::*;
 pub use message::*;

@@ -2,7 +2,7 @@ use std::{process, sync::Arc};
 
 use tokio::task::JoinSet;
 
-use crate::{config::Config, router::local::LocalRouter};
+use crate::{config::Config, router::local::LocalRouter, server::ServiceContext};
 
 mod config;
 mod router;
@@ -25,21 +25,23 @@ async fn main() {
 
     let mut tasks_js = JoinSet::new();
 
-    // The server task
-    tasks_js.spawn(async move {
-        tracing::info!("API server task created.");
-        server::serve(&server_options).await;
-
-        // This should run forever,
-        TaskFinishBehaviour::Abort("API server aborted unexpectedly")
-    });
-
     // The router task
+    let router_cloned = router_instance.clone();
     tasks_js.spawn(async move {
-        router_instance.run().await;
+        router_cloned.run().await;
 
         // Should run forever
         TaskFinishBehaviour::Abort("Router aborted unexpectedly")
+    });
+
+    // The server task
+    tasks_js.spawn(async move {
+        let ctx = ServiceContext::new(router_instance);
+        tracing::info!("API server task created.");
+        server::serve(&server_options, ctx).await;
+
+        // This should run forever,
+        TaskFinishBehaviour::Abort("API server aborted unexpectedly")
     });
 
     while let Ok(finish_behaviour) = tasks_js
