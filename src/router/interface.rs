@@ -64,7 +64,6 @@ pub type ResponseHandler = Connection<Response, Request>;
 pub trait Router {
     fn route_request(
         &self,
-        service_id: String,
         request: Request,
     ) -> impl Future<Output = anyhow::Result<mpsc::Receiver<Response>>>;
 
@@ -77,7 +76,6 @@ pub trait Router {
 pub trait RouterDyn {
     fn route_request(
         &self,
-        service_id: String,
         request: Request,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<mpsc::Receiver<Response>>> + '_>>;
 
@@ -97,9 +95,8 @@ impl<T: Router> RouterDyn for T {
 
     fn route_request(
         &self,
-        service_id: String,
         request: Request,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<mpsc::Receiver<Response>>> + '_>> {
-        Box::pin(self.route_request(service_id, request))
+        Box::pin(self.route_request(request))
     }
 }
