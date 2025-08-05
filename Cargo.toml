@@ -1,7 +1,11 @@
 [package]
 name = "aimo-node"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
+description = "AiMo Network router node Rust implementation"
+license-file = "LICENSE"
+homepage = "https://aimo.network"
+repository = "https://github.com/AIMOverse/aimo-node"
 
 [dependencies]
 anyhow = "1.0.98"
