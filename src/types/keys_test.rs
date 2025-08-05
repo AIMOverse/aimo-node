@@ -11,7 +11,7 @@ fn create_sk() -> SecretKeyV1 {
             created_at: 1754401735372,
             valid_for: 5_000_000_000,
             usage_limit: 1234,
-            scopes: vec![Scope::ModelCompletion],
+            scopes: vec![Scope::CompletionModel],
         },
     }
 }
@@ -26,7 +26,7 @@ fn sk_json() -> String {
             "created_at": 1754401735372u64,
             "valid_for": 5000000000u64,
             "usage_limit": 1234,
-            "scopes": ["model:completion"]
+            "scopes": ["completion_model"]
         }
     })
     .to_string()
@@ -35,9 +35,9 @@ fn sk_json() -> String {
 #[test]
 fn test_sk_encode_decode() {
     let sk = create_sk();
-    let sk_encoded = sk.try_encode("test").unwrap();
+    let sk_encoded = sk.clone().into_string("test").unwrap();
     println!("{sk_encoded}");
-    let (scope, sk_decoded) = SecretKeyV1::try_decode(&sk_encoded).unwrap();
+    let (scope, sk_decoded) = SecretKeyV1::decode(&sk_encoded).unwrap();
 
     assert_eq!(scope, "test");
     assert_eq!(sk_decoded.signer, sk.signer);
@@ -56,5 +56,23 @@ fn test_sk_parse() {
     assert_eq!(sk_parsed.signer, sk.signer);
     assert_eq!(sk_parsed.signature, sk.signature);
     assert_eq!(sk_parsed.metadata.scopes.len(), 1);
-    assert_eq!(sk_parsed.metadata.scopes[0], Scope::ModelCompletion);
+    assert_eq!(sk_parsed.metadata.scopes[0], Scope::CompletionModel);
+}
+
+#[test]
+fn test_raw_key() {
+    let sk = create_sk();
+    let raw = SecretKeyRawV1::try_from(sk).unwrap();
+    let bytes = raw.into_bytes();
+
+    assert_eq!(bytes.len(), SecretKeyRawV1::BYTES);
+}
+
+#[test]
+fn test_raw_metadata() {
+    let sk = create_sk();
+    let raw = MetadataRawV1::try_from(sk.metadata).unwrap();
+    let bytes = raw.into_bytes();
+
+    assert_eq!(bytes.len(), MetadataRawV1::BYTES);
 }

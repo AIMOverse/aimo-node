@@ -7,7 +7,7 @@ pub async fn generate_key(
     Json(payload): Json<SecretKeyV1>,
 ) -> Result<Json<GenerateKeyResponse>, (StatusCode, String)> {
     let sk_encoded = payload
-        .try_encode("dev")
+        .into_string("dev")
         .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?;
 
     Ok(Json(GenerateKeyResponse {
