@@ -2,7 +2,7 @@ use axum::{Json, http::StatusCode};
 
 use crate::{server::types::keys::GenerateKeyResponse, types::keys::SecretKeyV1};
 
-/// POST /api/v1/keys/generate
+/// POST /keys/generate
 pub async fn generate_key(
     Json(payload): Json<SecretKeyV1>,
 ) -> Result<Json<GenerateKeyResponse>, (StatusCode, String)> {

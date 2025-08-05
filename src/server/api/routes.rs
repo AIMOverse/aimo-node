@@ -8,7 +8,7 @@ use tower_http::trace::TraceLayer;
 use crate::{
     config::ServerOptions,
     server::{
-        api::keys::generate_key,
+        api::{chat::completions, keys::generate_key},
         context::ServiceContext,
         middleware::{cors_layer, timeout_layer},
     },
@@ -20,6 +20,7 @@ pub fn api_v1(options: &ServerOptions, ctx: ServiceContext) -> Router {
     Router::new()
         .route("/ping", get(|| async { "pong" }))
         .route("/keys/generate", post(generate_key))
+        .route("/chat/completions", post(completions))
         .with_state(ApiState::new(ctx))
         .layer(
             ServiceBuilder::new()
