@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use anyhow::bail;
 use tokio::sync::{Mutex, mpsc};
 
 use crate::router::{
@@ -137,5 +138,22 @@ impl Router for LocalRouter {
         });
 
         Ok(rx)
+    }
+
+    async fn drop_service(&self, service_id: String) -> anyhow::Result<()> {
+        if self
+            .service_connections
+            .lock()
+            .await
+            .remove(&service_id)
+            .map(|_| {
+                tracing::info!("Service {service_id} dropped");
+            })
+            .is_none()
+        {
+            bail!("Failed to drop: Service {service_id} not found");
+        }
+
+        Ok(())
     }
 }

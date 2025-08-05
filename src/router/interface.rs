@@ -36,7 +36,6 @@ pub fn make_connection<TSend, TRecv>(
     )
 }
 
-pub type RequestHandler = Connection<Request, Response>;
 pub type ResponseHandler = Connection<Response, Request>;
 
 /// Request to response transport abstraction
@@ -71,6 +70,8 @@ pub trait Router {
         &self,
         service_id: String,
     ) -> impl Future<Output = anyhow::Result<ResponseHandler>>;
+
+    fn drop_service(&self, service_id: String) -> impl Future<Output = anyhow::Result<()>>;
 }
 
 pub trait RouterDyn {
@@ -83,6 +84,11 @@ pub trait RouterDyn {
         &self,
         service_id: String,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<ResponseHandler>> + '_>>;
+
+    fn drop_service(
+        &self,
+        service_id: String,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + '_>>;
 }
 
 impl<T: Router> RouterDyn for T {
@@ -98,5 +104,12 @@ impl<T: Router> RouterDyn for T {
         request: Request,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<mpsc::Receiver<Response>>> + '_>> {
         Box::pin(self.route_request(request))
+    }
+
+    fn drop_service(
+        &self,
+        service_id: String,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + '_>> {
+        Box::pin(self.drop_service(service_id))
     }
 }
