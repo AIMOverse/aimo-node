@@ -5,14 +5,14 @@ use clap::Parser;
 use crate::{
     cli::{CliArgs, CommandArgs},
     helpers::keygen::generate_secret_key,
-    serve::run_serve,
+    node::run_serve,
 };
 
 mod cli;
 mod config;
 mod helpers;
+mod node;
 mod router;
-mod serve;
 mod server;
 mod types;
 mod utils;

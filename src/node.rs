@@ -14,6 +14,7 @@ enum TaskFinishBehaviour {
     // Restart,
 }
 
+/// Run the full node service (server + router)
 pub async fn run_serve(addr: String, port: u16, _id: Option<PathBuf>) {
     let server_options = ServerOptions { addr, port };
     let router_instance = Arc::new(LocalRouter::new());
