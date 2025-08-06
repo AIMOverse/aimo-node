@@ -69,4 +69,26 @@ pub enum CommandArgs {
         )]
         id: Option<PathBuf>,
     },
+
+    /// Run a proxy to connect your endpoint to AiMo Network directly
+    Proxy {
+        /// Url to an AiMo Network node
+        #[arg(long)]
+        node_url: String,
+
+        /// AiMo Network secret key
+        #[arg(
+            long,
+            long_help = "Provide your secret key to access AiMo Network nodes. See `aimo keygen --help`."
+        )]
+        secret_key: String,
+
+        /// Url to your service endpoint
+        #[arg(long)]
+        endpoint_url: String,
+
+        /// If your service endpoint requires an API key, specify the key here.
+        #[arg(long)]
+        api_key: Option<String>,
+    },
 }
