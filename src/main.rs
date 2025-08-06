@@ -1,7 +1,10 @@
+use std::process;
+
 use clap::Parser;
 
 use crate::{
     cli::{CliArgs, CommandArgs},
+    helpers::keygen::generate_secret_key,
     serve::run_serve,
 };
 
@@ -25,10 +28,18 @@ async fn main() {
             run_serve(addr, port, id).await;
         }
         CommandArgs::Keygen {
+            tag,
             valid_for,
             scopes,
             usage_limit,
             id,
-        } => {}
+        } => {
+            if let Err(err) = generate_secret_key(&tag, valid_for, scopes, usage_limit, id)
+                .map(|sk| println!("{sk}"))
+            {
+                println!("Error: {err}");
+                process::exit(1);
+            }
+        }
     }
 }

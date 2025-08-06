@@ -34,6 +34,15 @@ pub enum CommandArgs {
 
     /// Generate a secret key for your wallet
     Keygen {
+        /// The scope tag of the secret key, e.g. dev
+        #[arg(
+            long,
+            short,
+            default_value = "dev",
+            long_help = "Scope tag is set to `dev` by default. By specifying this, you get a secret key like: `aimo-sk-<tag>-xxxxxxx`"
+        )]
+        tag: String,
+
         /// How many days should the secret key valid for
         #[arg(long, short, default_value_t = 90)]
         valid_for: u32,
@@ -43,13 +52,14 @@ pub enum CommandArgs {
             long,
             short,
             value_delimiter = ',',
-            long_help = "Specify which scopes to enable with comma-seperated values. Current supported values are: \"completion_model\""
+            long_help = "Specify which scopes to enable with comma-seperated values. Current supported values are: \"completion_model\"",
+            default_value = "completion_model"
         )]
         scopes: Vec<Scope>,
 
         /// Usage limit of the secret key
-        #[arg(long, short)]
-        usage_limit: Option<u64>,
+        #[arg(long, short, default_value_t = 0)]
+        usage_limit: u64,
 
         /// Path to secret key signer's Solana wallet id file
         #[arg(
