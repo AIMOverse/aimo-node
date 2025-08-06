@@ -2,8 +2,6 @@ use std::env;
 
 use serde::{Deserialize, Serialize};
 
-use crate::cli::CommandArgs;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerOptions {
     pub addr: String,
@@ -21,6 +19,7 @@ impl Default for ServerOptions {
 }
 
 impl ServerOptions {
+    #[allow(dead_code)]
     pub fn from_env() -> Self {
         let mut default_opts = Self::default();
 

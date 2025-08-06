@@ -1,14 +1,8 @@
-use std::{process, sync::Arc};
-
 use clap::Parser;
-use tokio::task::JoinSet;
 
 use crate::{
     cli::{CliArgs, CommandArgs},
-    config::ServerOptions,
-    router::local::LocalRouter,
     serve::run_serve,
-    server::ServiceContext,
 };
 
 mod cli;
