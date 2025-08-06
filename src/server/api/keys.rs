@@ -48,9 +48,11 @@ pub async fn verify_key(
         ));
     }
 
-    let result = payload
-        .verify_signature()
-        .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?;
+    let result = payload.verify_signature();
 
-    Ok(Json(VerifyKeyResponse { result, payload }))
+    Ok(Json(VerifyKeyResponse {
+        result: result.is_ok(),
+        reason: result.map_or_else(|err| Some(err.to_string()), |_| None),
+        payload,
+    }))
 }

@@ -90,11 +90,11 @@ fn test_raw_metadata() {
 #[test]
 fn test_verify() {
     let sk = create_sk();
-    assert!(sk.verify_signature().unwrap());
+    assert!(sk.verify_signature().is_ok());
 
     // encode, decode and verify
     let sk = create_sk();
     let sk_string = sk.into_string("test").unwrap();
     let (_, sk) = SecretKeyV1::decode(&sk_string).unwrap();
-    assert!(sk.verify_signature().unwrap());
+    assert!(sk.verify_signature().is_ok());
 }

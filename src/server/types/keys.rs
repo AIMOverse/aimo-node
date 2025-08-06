@@ -25,5 +25,6 @@ pub struct VerifyKeyRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerifyKeyResponse {
     pub result: bool,
+    pub reason: Option<String>,
     pub payload: SecretKeyV1,
 }

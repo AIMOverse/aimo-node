@@ -57,12 +57,17 @@ impl SecretKeyV1 {
         Ok((scope.to_string(), raw.try_into()?))
     }
 
-    pub fn verify_signature(&self) -> anyhow::Result<bool> {
+    pub fn verify_signature(&self) -> anyhow::Result<()> {
         let metadata_bytes = MetadataRawV1::try_from(self.metadata.clone())?.into_bytes();
         let public_key = Pubkey::from_str(&self.signer)?;
         let signature = Signature::from_str(&self.signature)?;
         let is_valid = signature.verify(public_key.as_ref(), &metadata_bytes);
-        Ok(is_valid)
+
+        if !is_valid {
+            bail!("Failed to verify signature");
+        }
+
+        Ok(())
     }
 }
 
