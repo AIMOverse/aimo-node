@@ -4,12 +4,15 @@ use anyhow::{Result, anyhow};
 use futures_util::{SinkExt, stream::StreamExt};
 use reqwest::{Client, Method};
 use serde_json;
-use tokio::sync::mpsc;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{self, Message},
+};
 use tracing::{debug, error, info, warn};
 use url::Url;
 
-use crate::router::{MessageFrame, MessagePayload, Request, Response};
+use crate::router::{ESSENTIAL_RESPONSE_HEADERS, Request, Response, filter_essential_headers};
 
 /// Proxy aimo node requests to standard http endpoints
 ///
@@ -37,26 +40,39 @@ pub async fn serve_websocket(
     info!("Connecting to WebSocket: {}", ws_url);
 
     // Connect to the node's websocket endpoint
-    let (ws_stream, _) = connect_async(&ws_url)
+    let url = url::Url::parse(&ws_url)?;
+
+    let mut request = tungstenite::http::Request::builder()
+        .method("GET")
+        .uri(ws_url.as_str())
+        .header("Host", url.host_str().unwrap_or("localhost"))
+        .header("Upgrade", "websocket")
+        .header("Connection", "Upgrade")
+        .header(
+            "Sec-WebSocket-Key",
+            tungstenite::handshake::client::generate_key(),
+        )
+        .header("Sec-WebSocket-Version", "13")
+        .header("Authorization", format!("Bearer {}", secret_key))
+        .body(())?;
+
+    let (ws_stream, _) = connect_async(request)
         .await
         .map_err(|e| anyhow!("Failed to connect to WebSocket: {}", e))?;
-
     info!("WebSocket connection established");
 
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let http_client = Client::new();
 
     // Create a channel for sending responses back to the websocket
-    let (response_tx, mut response_rx) = mpsc::unbounded_channel::<MessageFrame>();
+    let (response_tx, mut response_rx) = mpsc::unbounded_channel::<Message>();
 
     // Spawn task to handle outgoing messages
     let sender_task = tokio::spawn(async move {
-        while let Some(frame) = response_rx.recv().await {
-            if let Ok(json_msg) = serde_json::to_string(&frame) {
-                if let Err(e) = ws_sender.send(Message::Text(json_msg.into())).await {
-                    error!("Failed to send message: {}", e);
-                    break;
-                }
+        while let Some(message) = response_rx.recv().await {
+            if let Err(e) = ws_sender.send(message).await {
+                error!("Failed to send message: {}", e);
+                break;
             }
         }
     });
@@ -67,25 +83,14 @@ pub async fn serve_websocket(
             Ok(Message::Text(text)) => {
                 debug!("Received message: {}", text);
 
-                // Parse the message frame
-                let message_frame: MessageFrame = match serde_json::from_str(&text) {
-                    Ok(frame) => frame,
+                // Parse the request directly (no MessageFrame wrapper)
+                let request: Request = match serde_json::from_str(&text) {
+                    Ok(req) => req,
                     Err(e) => {
-                        warn!("Failed to parse message frame: {}", e);
+                        warn!("Failed to parse request: {}", e);
                         continue;
                     }
-                };
-
-                // Extract the request from the message payload
-                let request = match message_frame.payload {
-                    MessagePayload::Request(req) => req,
-                    _ => {
-                        debug!("Received non-request message, ignoring");
-                        continue;
-                    }
-                };
-
-                // Clone necessary data for the spawned task
+                }; // Clone necessary data for the spawned task
                 let endpoint_url = endpoint_url.clone();
                 let api_key = api_key.clone();
                 let client = http_client.clone();
@@ -123,7 +128,7 @@ pub async fn serve_websocket(
 }
 
 /// Build the WebSocket URL with authentication
-fn build_websocket_url(node_url: &str, secret_key: &str) -> Result<String> {
+fn build_websocket_url(node_url: &str, _secret_key: &str) -> Result<String> {
     let mut url = Url::parse(node_url)?;
 
     // Convert HTTP(S) to WS(S)
@@ -138,9 +143,8 @@ fn build_websocket_url(node_url: &str, secret_key: &str) -> Result<String> {
         _ => return Err(anyhow!("Unsupported URL scheme: {}", url.scheme())),
     }
 
-    // Add subscribe endpoint and authentication
-    url.set_path("/subscribe");
-    url.query_pairs_mut().append_pair("secret_key", secret_key);
+    // Add subscribe endpoint
+    url.set_path("/api/v1/providers/subscribe");
 
     Ok(url.to_string())
 }
@@ -151,12 +155,12 @@ async fn handle_request(
     request: Request,
     endpoint_url: String,
     api_key: Option<String>,
-    response_sender: mpsc::UnboundedSender<MessageFrame>,
-) -> Result<()> {
+    response_sender: UnboundedSender<Message>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     debug!("Handling request ID: {}", request.request_id);
 
-    // Parse the HTTP method
-    let method = match request.request_type.to_uppercase().as_str() {
+    // Parse the HTTP method from the new method field
+    let method = match request.method.to_uppercase().as_str() {
         "GET" => Method::GET,
         "POST" => Method::POST,
         "PUT" => Method::PUT,
@@ -165,7 +169,7 @@ async fn handle_request(
         "HEAD" => Method::HEAD,
         "OPTIONS" => Method::OPTIONS,
         _ => {
-            warn!("Unsupported HTTP method: {}", request.request_type);
+            warn!("Unsupported HTTP method: {}", request.method);
             send_error_response(
                 &response_sender,
                 &request.request_id,
@@ -226,6 +230,9 @@ async fn handle_request(
                 .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
                 .collect();
 
+            // Filter headers to only include essential ones
+            let filtered_headers = filter_essential_headers(&headers, ESSENTIAL_RESPONSE_HEADERS);
+
             let content_type = headers
                 .get("content-type")
                 .or_else(|| headers.get("Content-Type"))
@@ -240,7 +247,7 @@ async fn handle_request(
                     &response_sender,
                     &request.request_id,
                     &content_type,
-                    headers,
+                    filtered_headers,
                 )
                 .await?;
             } else {
@@ -253,7 +260,7 @@ async fn handle_request(
                     &response_sender,
                     &request.request_id,
                     &content_type,
-                    headers,
+                    filtered_headers,
                 )
                 .await?;
             }
@@ -275,17 +282,17 @@ async fn handle_request(
 /// Handle a regular (non-streaming) HTTP response
 async fn handle_regular_response(
     response: reqwest::Response,
-    response_sender: &mpsc::UnboundedSender<MessageFrame>,
+    response_sender: &UnboundedSender<Message>,
     request_id: &str,
     content_type: &str,
     headers: HashMap<String, String>,
-) -> Result<()> {
-    let status = response.status().as_u16();
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let status_code = response.status().as_u16();
     let body = response.text().await.unwrap_or_else(|_| "".to_string());
 
-    let response_msg = Response {
+    let response = Response {
         request_id: request_id.to_string(),
-        status_code: status,
+        status_code,
         content_type: content_type.to_string(),
         payload: body,
         headers,
@@ -293,16 +300,8 @@ async fn handle_regular_response(
         stream_done: true,
     };
 
-    let message_frame = MessageFrame {
-        id: uuid::Uuid::new_v4().to_string(),
-        timestamp: chrono::Utc::now().timestamp_millis() as u64,
-        target_id: None,
-        payload: MessagePayload::Response(response_msg),
-    };
-
-    response_sender
-        .send(message_frame)
-        .map_err(|_| anyhow!("Failed to send response"))?;
+    let message = Message::text(serde_json::to_string(&response)?);
+    response_sender.send(message)?;
 
     debug!("Sent regular response for request {}", request_id);
     Ok(())
@@ -311,12 +310,12 @@ async fn handle_regular_response(
 /// Handle a Server-Sent Events (SSE) stream response
 async fn handle_sse_stream(
     response: reqwest::Response,
-    response_sender: &mpsc::UnboundedSender<MessageFrame>,
+    response_sender: &UnboundedSender<Message>,
     request_id: &str,
     content_type: &str,
     headers: HashMap<String, String>,
-) -> Result<()> {
-    let status = response.status().as_u16();
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let status_code = response.status().as_u16();
     let mut stream = response.bytes_stream();
 
     while let Some(chunk_result) = stream.next().await {
@@ -325,9 +324,9 @@ async fn handle_sse_stream(
                 let chunk_data = String::from_utf8_lossy(&chunk).to_string();
 
                 // Send this chunk as a streaming response
-                let response_msg = Response {
+                let response = Response {
                     request_id: request_id.to_string(),
-                    status_code: status,
+                    status_code,
                     content_type: content_type.to_string(),
                     payload: chunk_data,
                     headers: headers.clone(),
@@ -335,14 +334,8 @@ async fn handle_sse_stream(
                     stream_done: false,
                 };
 
-                let message_frame = MessageFrame {
-                    id: uuid::Uuid::new_v4().to_string(),
-                    timestamp: chrono::Utc::now().timestamp_millis() as u64,
-                    target_id: None,
-                    payload: MessagePayload::Response(response_msg),
-                };
-
-                if response_sender.send(message_frame).is_err() {
+                let message = Message::text(serde_json::to_string(&response)?);
+                if response_sender.send(message).is_err() {
                     error!("Failed to send stream chunk, connection closed");
                     break;
                 }
@@ -359,7 +352,7 @@ async fn handle_sse_stream(
     // Send final "stream done" message
     let final_response = Response {
         request_id: request_id.to_string(),
-        status_code: status,
+        status_code,
         content_type: content_type.to_string(),
         payload: "".to_string(),
         headers,
@@ -367,16 +360,8 @@ async fn handle_sse_stream(
         stream_done: true,
     };
 
-    let message_frame = MessageFrame {
-        id: uuid::Uuid::new_v4().to_string(),
-        timestamp: chrono::Utc::now().timestamp_millis() as u64,
-        target_id: None,
-        payload: MessagePayload::Response(final_response),
-    };
-
-    response_sender
-        .send(message_frame)
-        .map_err(|_| anyhow!("Failed to send final stream message"))?;
+    let message = Message::text(serde_json::to_string(&final_response)?);
+    response_sender.send(message)?;
 
     debug!("Stream completed for request {}", request_id);
     Ok(())
@@ -384,12 +369,12 @@ async fn handle_sse_stream(
 
 /// Send an error response back through the WebSocket
 fn send_error_response(
-    response_sender: &mpsc::UnboundedSender<MessageFrame>,
+    response_sender: &UnboundedSender<Message>,
     request_id: &str,
     status_code: u16,
     error_message: &str,
-) -> Result<()> {
-    let response_msg = Response {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let response = Response {
         request_id: request_id.to_string(),
         status_code,
         content_type: "text/plain".to_string(),
@@ -399,16 +384,8 @@ fn send_error_response(
         stream_done: true,
     };
 
-    let message_frame = MessageFrame {
-        id: uuid::Uuid::new_v4().to_string(),
-        timestamp: chrono::Utc::now().timestamp_millis() as u64,
-        target_id: None,
-        payload: MessagePayload::Response(response_msg),
-    };
-
-    response_sender
-        .send(message_frame)
-        .map_err(|_| anyhow!("Failed to send error response"))?;
+    let message = Message::text(serde_json::to_string(&response)?);
+    response_sender.send(message)?;
 
     Ok(())
 }

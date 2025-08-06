@@ -70,6 +70,7 @@ async fn test_local_router() {
                 headers: HashMap::new(),
                 payload_encrypted: false,
                 signature: None,
+                method: "GET".to_string(),
             })
             .await
             // This should not fail

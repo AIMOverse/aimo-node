@@ -26,6 +26,11 @@ pub async fn completions(
             StatusCode::BAD_REQUEST,
             "`target` field not specified".to_string(),
         ))?
+        .as_str()
+        .ok_or((
+            StatusCode::BAD_REQUEST,
+            "`target` field must be a string".to_string(),
+        ))?
         .to_string();
 
     let mut rx = ctx
@@ -36,6 +41,7 @@ pub async fn completions(
             request_id: Keypair::new().pubkey().to_string(),
             endpoint: None,
             request_type: "completion_model".to_string(),
+            method: "POST".to_string(),
             payload: body.to_string(),
             headers: HashMap::new(),
             payload_encrypted: false,
