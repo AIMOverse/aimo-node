@@ -1,5 +1,5 @@
 use axum::{
-    Router,
+    Router, middleware,
     routing::{get, post},
 };
 use tower::ServiceBuilder;
@@ -13,7 +13,7 @@ use crate::{
             keys::{generate_key, metadata_bytes, verify_key},
         },
         context::ServiceContext,
-        middleware::{cors_layer, timeout_layer},
+        middleware::{auth_layer, cors_layer, timeout_layer},
     },
 };
 
@@ -25,7 +25,10 @@ pub fn api_v1(options: &ServerOptions, ctx: ServiceContext) -> Router {
         .route("/keys/metadata_bytes", get(metadata_bytes))
         .route("/keys/generate", post(generate_key))
         .route("/keys/verify", post(verify_key))
-        .route("/chat/completions", post(completions))
+        .route(
+            "/chat/completions",
+            post(completions).layer(middleware::from_fn(auth_layer)),
+        )
         .with_state(ApiState::new(ctx))
         .layer(
             ServiceBuilder::new()

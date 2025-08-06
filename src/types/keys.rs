@@ -3,6 +3,7 @@
 use std::str::FromStr;
 
 use anyhow::{Ok, anyhow, bail};
+use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
@@ -64,7 +65,18 @@ impl SecretKeyV1 {
         let is_valid = signature.verify(public_key.as_ref(), &metadata_bytes);
 
         if !is_valid {
-            bail!("Failed to verify signature");
+            bail!("Wrong signature");
+        }
+
+        // Check expiry
+        if let Some(dt) = DateTime::<Utc>::from_timestamp_millis(
+            self.metadata.created_at + self.metadata.valid_for,
+        ) {
+            if dt < Utc::now() {
+                bail!("Expired");
+            }
+        } else {
+            bail!("Invalid timestamp");
         }
 
         Ok(())
@@ -73,8 +85,8 @@ impl SecretKeyV1 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MetadataV1 {
-    pub created_at: u64,
-    pub valid_for: u64,
+    pub created_at: i64,
+    pub valid_for: i64,
     pub usage_limit: u64,
     pub scopes: Vec<Scope>,
 }
@@ -196,8 +208,8 @@ impl TryFrom<SecretKeyRawV1> for SecretKeyV1 {
 
 #[derive(Debug, Clone, Copy)]
 pub struct MetadataRawV1 {
-    pub created_at: u64,     // 8 bytes
-    pub valid_for: u64,      // 8 bytes
+    pub created_at: i64,     // 8 bytes
+    pub valid_for: i64,      // 8 bytes
     pub usage_limit: u64,    // 8 bytes
     pub scopes: ScopeBitMap, // 8 bytes
 }
@@ -227,8 +239,8 @@ impl MetadataRawV1 {
             );
         }
 
-        let created_at = u64::from_be_bytes(bytes[0..8].try_into()?);
-        let valid_for = u64::from_be_bytes(bytes[8..16].try_into()?);
+        let created_at = i64::from_be_bytes(bytes[0..8].try_into()?);
+        let valid_for = i64::from_be_bytes(bytes[8..16].try_into()?);
         let usage_limit = u64::from_be_bytes(bytes[16..24].try_into()?);
         let scopes = u64::from_be_bytes(bytes[24..32].try_into()?);
 

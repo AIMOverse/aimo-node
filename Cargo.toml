@@ -11,6 +11,7 @@ repository = "https://github.com/AIMOverse/aimo-node"
 anyhow = "1.0.98"
 async-stream = "0.3.6"
 axum = { version = "0.8.4", features = ["ws"] }
+axum-extra = { version = "0.10.1", features = ["typed-header"] }
 bs58 = { version = "0.5.1", features = ["check"] }
 chrono = { version = "0.4.41", features = ["serde"] }
 futures-core = "0.3.31"
