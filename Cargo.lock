@@ -75,7 +75,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "aimo-node"
+name = "aimo-cli"
 version = "0.0.1"
 dependencies = [
  "anyhow",
