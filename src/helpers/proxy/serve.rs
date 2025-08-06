@@ -84,10 +84,17 @@ pub async fn serve_websocket(
                 debug!("Received message: {}", text);
 
                 // Parse the request directly (no MessageFrame wrapper)
-                let request: Request = match serde_json::from_str(&text) {
-                    Ok(req) => req,
+                let request: Request = match serde_json::from_str::<Request>(&text) {
+                    Ok(req) => {
+                        info!(
+                            "Parsed request successfully - ID: {}, Method: {}, Type: {}",
+                            req.request_id, req.method, req.request_type
+                        );
+                        req
+                    }
                     Err(e) => {
                         warn!("Failed to parse request: {}", e);
+                        warn!("Raw message was: {}", text);
                         continue;
                     }
                 }; // Clone necessary data for the spawned task
@@ -192,17 +199,31 @@ async fn handle_request(
     };
 
     debug!("Forwarding {} request to: {}", method, target_url);
+    debug!("Request headers: {:?}", request.headers);
+    debug!("Request payload length: {} bytes", request.payload.len());
+    if !request.payload.is_empty() {
+        debug!(
+            "Request payload preview: {}",
+            if request.payload.len() > 200 {
+                format!("{}...", &request.payload[..200])
+            } else {
+                request.payload.clone()
+            }
+        );
+    }
 
     // Build the HTTP request
     let mut http_request = client.request(method, &target_url);
 
     // Add headers from the original request
     for (key, value) in &request.headers {
+        debug!("Adding header: {}: {}", key, value);
         http_request = http_request.header(key, value);
     }
 
     // Add API key if provided
     if let Some(api_key) = &api_key {
+        debug!("Adding Authorization header with API key");
         http_request = http_request.header("Authorization", format!("Bearer {}", api_key));
     }
 
@@ -216,19 +237,24 @@ async fn handle_request(
             .map(|s| s.as_str())
             .unwrap_or("application/json");
 
+        debug!("Setting content-type to: {}", content_type);
         http_request = http_request
             .header("Content-Type", content_type)
             .body(request.payload);
     }
 
+    debug!("Sending HTTP request...");
     // Send the request
     match http_request.send().await {
         Ok(response) => {
+            debug!("Received HTTP response with status: {}", response.status());
             let headers: HashMap<String, String> = response
                 .headers()
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
                 .collect();
+
+            debug!("Response headers: {:?}", headers);
 
             // Filter headers to only include essential ones
             let filtered_headers = filter_essential_headers(&headers, ESSENTIAL_RESPONSE_HEADERS);
@@ -267,6 +293,19 @@ async fn handle_request(
         }
         Err(e) => {
             error!("HTTP request failed: {}", e);
+            error!("Error details: {:?}", e);
+
+            // Check if it's a connection error, timeout, etc.
+            if e.is_connect() {
+                error!("Connection error - unable to connect to {}", target_url);
+            } else if e.is_timeout() {
+                error!("Request timeout");
+            } else if e.is_request() {
+                error!("Request construction error");
+            } else {
+                error!("Other HTTP error type");
+            }
+
             send_error_response(
                 &response_sender,
                 &request.request_id,
