@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use axum::extract::State;
 use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive};
+use axum::response::{IntoResponse, Response, Sse};
 use axum::{Extension, Json};
+use futures_util::stream;
 use serde_json::Value;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
@@ -19,7 +22,7 @@ pub async fn completions(
     Extension(payload): Extension<SecretKeyV1>,
     State(ApiState { ctx }): State<ApiState>,
     Json(body): Json<Value>,
-) -> Result<Json<Value>, (StatusCode, String)> {
+) -> Result<Response, (StatusCode, String)> {
     let mut body_cloned = body.clone();
     let mut model = body
         .get("model")
@@ -78,12 +81,52 @@ pub async fn completions(
 
     let status_code =
         StatusCode::from_u16(response.status_code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-    let body =
-        serde_json::from_str::<Value>(&response.payload).unwrap_or(Value::String(response.payload));
 
-    if !status_code.is_success() {
-        return Err((status_code, body.to_string()));
+    // Check if the response is a streaming response
+    let is_stream = response
+        .headers
+        .get("content-type")
+        .map(|ct| ct.contains("text/event-stream"))
+        .unwrap_or(false);
+
+    if is_stream {
+        // Handle streaming response
+        let first_chunk = response.payload.clone();
+        let stream = stream::unfold(
+            (Some(first_chunk), Some(rx)),
+            move |(chunk_opt, mut rx_opt)| async move {
+                if let Some(chunk) = chunk_opt {
+                    // Return the first chunk
+                    if !chunk.is_empty() {
+                        let event = Event::default().data(chunk);
+                        return Some((Ok::<Event, axum::Error>(event), (None, rx_opt)));
+                    }
+                }
+
+                // Continue receiving chunks
+                if let Some(ref mut rx) = rx_opt {
+                    if let Some(next_response) = rx.recv().await {
+                        if !next_response.payload.is_empty() {
+                            let event = Event::default().data(next_response.payload);
+                            return Some((Ok::<Event, axum::Error>(event), (None, rx_opt)));
+                        }
+                    }
+                }
+                None
+            },
+        );
+
+        let sse = Sse::new(stream).keep_alive(KeepAlive::default());
+        Ok(sse.into_response())
+    } else {
+        // Handle regular JSON response
+        let body = serde_json::from_str::<Value>(&response.payload)
+            .unwrap_or(Value::String(response.payload));
+
+        if !status_code.is_success() {
+            return Err((status_code, body.to_string()));
+        }
+
+        Ok(Json(body).into_response())
     }
-
-    Ok(Json(body))
 }
