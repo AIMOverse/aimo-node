@@ -2,6 +2,8 @@ use std::env;
 
 use serde::{Deserialize, Serialize};
 
+use crate::cli::CommandArgs;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerOptions {
     pub addr: String,

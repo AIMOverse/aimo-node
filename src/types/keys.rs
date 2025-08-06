@@ -103,6 +103,17 @@ pub enum Scope {
     CompletionModel,
 }
 
+impl FromStr for Scope {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "completion_model" => Ok(Self::CompletionModel),
+            _ => Err(anyhow!("Scope {s} not supported")),
+        }
+    }
+}
+
 type WalletEnum = u8;
 type ScopeBitMap = u64;
 
