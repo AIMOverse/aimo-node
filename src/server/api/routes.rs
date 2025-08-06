@@ -1,6 +1,6 @@
 use axum::{
     Router, middleware,
-    routing::{get, post},
+    routing::{any, get, post},
 };
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
@@ -11,6 +11,7 @@ use crate::{
         api::{
             chat::completions,
             keys::{generate_key, metadata_bytes, verify_key},
+            subscribe,
         },
         context::ServiceContext,
         middleware::{auth_layer, cors_layer, timeout_layer},
@@ -28,6 +29,10 @@ pub fn api_v1(options: &ServerOptions, ctx: ServiceContext) -> Router {
         .route(
             "/chat/completions",
             post(completions).layer(middleware::from_fn(auth_layer)),
+        )
+        .route(
+            "/providers/subscribe",
+            any(subscribe::handler).layer(middleware::from_fn(auth_layer)),
         )
         .with_state(ApiState::new(ctx))
         .layer(

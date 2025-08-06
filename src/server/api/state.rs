@@ -2,7 +2,7 @@ use crate::server::context::ServiceContext;
 
 #[derive(Clone)]
 pub(super) struct ApiState {
-    ctx: ServiceContext,
+    pub ctx: ServiceContext,
 }
 
 impl ApiState {

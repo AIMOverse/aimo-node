@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::bail;
+use async_trait::async_trait;
 use tokio::sync::{Mutex, mpsc};
 
 use crate::router::{
@@ -85,6 +86,7 @@ impl LocalRouter {
 
 impl LocalRouter {}
 
+#[async_trait]
 impl Router for LocalRouter {
     async fn register_service(&self, service_id: String) -> anyhow::Result<ResponseHandler> {
         let (client_handler, service_handler) = make_connection(16, 16);

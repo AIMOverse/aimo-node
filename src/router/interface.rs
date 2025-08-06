@@ -1,6 +1,5 @@
-use std::pin::Pin;
-
 use anyhow::anyhow;
+use async_trait::async_trait;
 use tokio::sync::mpsc;
 
 use crate::router::{Request, Response};
@@ -60,56 +59,11 @@ pub type ResponseHandler = Connection<Response, Request>;
 /// // > Service providers
 /// // responder -----> process -----> Response
 /// ```
+#[async_trait]
 pub trait Router {
-    fn route_request(
-        &self,
-        request: Request,
-    ) -> impl Future<Output = anyhow::Result<mpsc::Receiver<Response>>>;
+    async fn route_request(&self, request: Request) -> anyhow::Result<mpsc::Receiver<Response>>;
 
-    fn register_service(
-        &self,
-        service_id: String,
-    ) -> impl Future<Output = anyhow::Result<ResponseHandler>>;
+    async fn register_service(&self, service_id: String) -> anyhow::Result<ResponseHandler>;
 
-    fn drop_service(&self, service_id: String) -> impl Future<Output = anyhow::Result<()>>;
-}
-
-pub trait RouterDyn {
-    fn route_request(
-        &self,
-        request: Request,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<mpsc::Receiver<Response>>> + '_>>;
-
-    fn register_service(
-        &self,
-        service_id: String,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<ResponseHandler>> + '_>>;
-
-    fn drop_service(
-        &self,
-        service_id: String,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + '_>>;
-}
-
-impl<T: Router> RouterDyn for T {
-    fn register_service(
-        &self,
-        service_id: String,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<ResponseHandler>> + '_>> {
-        Box::pin(self.register_service(service_id))
-    }
-
-    fn route_request(
-        &self,
-        request: Request,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<mpsc::Receiver<Response>>> + '_>> {
-        Box::pin(self.route_request(request))
-    }
-
-    fn drop_service(
-        &self,
-        service_id: String,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + '_>> {
-        Box::pin(self.drop_service(service_id))
-    }
+    async fn drop_service(&self, service_id: String) -> anyhow::Result<()>;
 }
