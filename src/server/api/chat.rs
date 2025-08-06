@@ -20,30 +20,46 @@ pub async fn completions(
     State(ApiState { ctx }): State<ApiState>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
-    let target = body
-        .get("target")
+    let mut body_cloned = body.clone();
+    let mut model = body
+        .get("model")
         .ok_or((
             StatusCode::BAD_REQUEST,
-            "`target` field not specified".to_string(),
+            "`model` field not specified".to_string(),
         ))?
         .as_str()
         .ok_or((
             StatusCode::BAD_REQUEST,
-            "`target` field must be a string".to_string(),
+            "`model` field must be a string".to_string(),
         ))?
-        .to_string();
+        .splitn(2, ':');
+
+    let target = model.next().ok_or((
+        StatusCode::BAD_REQUEST,
+        "Can't parse target: Invalid `model` field: Should be in this pattern: \"<target>:<model_name>\"".to_string(),
+    ))?;
+
+    let model_name = model.next().ok_or((
+        StatusCode::BAD_REQUEST,
+        "Can't parse model name: Invalid `model` field: Should be in this pattern: \"<target>:<model_name>\"".to_string(),
+    ))?;
+
+    body_cloned["model"] = Value::String(model_name.to_string());
+
+    let mut headers = HashMap::new();
+    headers.insert("content-type".to_string(), "application/json".to_string());
 
     let mut rx = ctx
         .router
         .route_request(Request {
-            service_id: target,
+            service_id: target.to_string(),
             sender_id: payload.signer.clone(),
             request_id: Keypair::new().pubkey().to_string(),
             endpoint: None,
             request_type: "completion_model".to_string(),
             method: "POST".to_string(),
-            payload: body.to_string(),
-            headers: HashMap::new(),
+            payload: body_cloned.to_string(),
+            headers,
             payload_encrypted: false,
             signature: None,
         })
@@ -60,10 +76,14 @@ pub async fn completions(
         format!("Failed to receive responses"),
     ))?;
 
-    Ok(Json(serde_json::to_value(response).map_err(|err| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("Invalid response received: {err}"),
-        )
-    })?))
+    let status_code =
+        StatusCode::from_u16(response.status_code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let body =
+        serde_json::from_str::<Value>(&response.payload).unwrap_or(Value::String(response.payload));
+
+    if !status_code.is_success() {
+        return Err((status_code, body.to_string()));
+    }
+
+    Ok(Json(body))
 }

@@ -42,7 +42,7 @@ pub async fn serve_websocket(
     // Connect to the node's websocket endpoint
     let url = url::Url::parse(&ws_url)?;
 
-    let mut request = tungstenite::http::Request::builder()
+    let request = tungstenite::http::Request::builder()
         .method("GET")
         .uri(ws_url.as_str())
         .header("Host", url.host_str().unwrap_or("localhost"))
@@ -329,6 +329,20 @@ async fn handle_regular_response(
     let status_code = response.status().as_u16();
     let body = response.text().await.unwrap_or_else(|_| "".to_string());
 
+    info!(
+        "Endpoint response - Status: {}, Content-Type: {}",
+        status_code, content_type
+    );
+    info!("Response body length: {} bytes", body.len());
+    debug!(
+        "Response body: {}",
+        if body.len() > 1000 {
+            format!("{}...", &body[..1000])
+        } else {
+            body.clone()
+        }
+    );
+
     let response = Response {
         request_id: request_id.to_string(),
         status_code,
@@ -355,12 +369,25 @@ async fn handle_sse_stream(
     headers: HashMap<String, String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let status_code = response.status().as_u16();
+    info!(
+        "Starting SSE stream - Status: {}, Content-Type: {}",
+        status_code, content_type
+    );
     let mut stream = response.bytes_stream();
 
     while let Some(chunk_result) = stream.next().await {
         match chunk_result {
             Ok(chunk) => {
                 let chunk_data = String::from_utf8_lossy(&chunk).to_string();
+                debug!(
+                    "Received stream chunk ({} bytes): {}",
+                    chunk.len(),
+                    if chunk_data.len() > 200 {
+                        format!("{}...", &chunk_data[..200])
+                    } else {
+                        chunk_data.clone()
+                    }
+                );
 
                 // Send this chunk as a streaming response
                 let response = Response {
@@ -388,6 +415,7 @@ async fn handle_sse_stream(
         }
     }
 
+    info!("SSE stream completed for request {}", request_id);
     // Send final "stream done" message
     let final_response = Response {
         request_id: request_id.to_string(),
