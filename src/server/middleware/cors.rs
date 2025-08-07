@@ -11,4 +11,5 @@ pub fn cors_layer(_options: &ServerOptions) -> CorsLayer {
         .allow_methods([Method::GET, Method::POST])
         // allow requests from any origin
         .allow_origin(Any)
+        .allow_headers(Any)
 }
