@@ -4,7 +4,7 @@ use chrono::{Duration, Utc};
 use solana_sdk::signer::Signer;
 
 use crate::{
-    types::keys::{MetadataRawV1, MetadataV1, Scope, SecretKeyV1, Wallet},
+    core::keys::{MetadataRawV1, MetadataV1, Scope, SecretKeyV1, Wallet},
     utils::id::create_keypair_from_file,
 };
 

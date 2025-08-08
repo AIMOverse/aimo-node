@@ -10,11 +10,11 @@ use crate::{
 
 mod cli;
 mod config;
+mod core;
 mod helpers;
 mod node;
 mod router;
 mod server;
-mod types;
 mod utils;
 
 #[tokio::main]

@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
-use crate::router::{Request, Response};
+use crate::core::transport::{Request, Response};
 
 /// RequestTransport is owned by connection sender
 pub struct Connection<TSend, TRecv> {

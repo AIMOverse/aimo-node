@@ -12,7 +12,9 @@ use tokio_tungstenite::{
 use tracing::{debug, error, info, warn};
 use url::Url;
 
-use crate::router::{ESSENTIAL_RESPONSE_HEADERS, Request, Response, filter_essential_headers};
+use crate::core::transport::{
+    ESSENTIAL_RESPONSE_HEADERS, Request, Response, filter_essential_headers,
+};
 
 /// Proxy aimo node requests to standard http endpoints
 ///

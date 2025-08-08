@@ -2,15 +2,6 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-/// Represents a message frame in transport (for internal use)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MessageFrame {
-    pub id: String,     // Unique message identifier (UUID v4)
-    pub timestamp: u64, // Unix timestamp in milliseconds
-    pub target_id: Option<String>,
-    pub payload: MessagePayload,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MessagePayload {
     Request(Request),

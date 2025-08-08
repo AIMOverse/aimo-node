@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::types::keys::{MetadataV1, SecretKeyV1};
+use crate::core::keys::{MetadataV1, SecretKeyV1};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetadataBytesRequest {

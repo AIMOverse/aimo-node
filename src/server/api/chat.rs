@@ -10,9 +10,8 @@ use serde_json::Value;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 
-use crate::router::Request;
+use crate::core::{keys::SecretKeyV1, transport::Request};
 use crate::server::api::state::ApiState;
-use crate::types::keys::SecretKeyV1;
 
 /// Expose an openai-compatible API
 ///

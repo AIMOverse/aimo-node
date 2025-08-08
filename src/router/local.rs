@@ -4,8 +4,9 @@ use anyhow::bail;
 use async_trait::async_trait;
 use tokio::sync::{Mutex, mpsc};
 
+use crate::core::transport::{MessagePayload, Request, Response};
 use crate::router::{
-    MessagePayload, Request, Response, Router,
+    Router,
     interface::{ResponseHandler, make_connection},
 };
 

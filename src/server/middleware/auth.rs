@@ -4,7 +4,7 @@ use axum_extra::{
     headers::{Authorization, authorization::Bearer},
 };
 
-use crate::types::keys::SecretKeyV1;
+use crate::core::keys::SecretKeyV1;
 
 /// Validate a secret key and forward secret key payload to axum's extension extractor
 pub async fn auth_layer(

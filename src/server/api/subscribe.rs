@@ -10,9 +10,8 @@ use futures_util::{sink::SinkExt, stream::StreamExt};
 use tokio::task::JoinSet;
 
 use crate::{
-    router,
+    core::{keys::SecretKeyV1, transport},
     server::{ServiceContext, api::state::ApiState},
-    types::keys::SecretKeyV1,
 };
 
 pub async fn handler(
@@ -47,7 +46,7 @@ async fn handle_socket(mut socket: WebSocket, ctx: ServiceContext, payload: Secr
             js.spawn(async move {
                 while let Some(Ok(Message::Text(text))) = ws_receiver.next().await {
                     let str = text.to_string();
-                    if let Ok(response) = serde_json::from_str::<router::Response>(&str)
+                    if let Ok(response) = serde_json::from_str::<transport::Response>(&str)
                         .inspect_err(|err| tracing::debug!("Failed to deserialize response: {err}"))
                     {
                         if let Err(_) = tx.send(response).await {

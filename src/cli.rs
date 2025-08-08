@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::types::keys::Scope;
+use crate::core::keys::Scope;
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]

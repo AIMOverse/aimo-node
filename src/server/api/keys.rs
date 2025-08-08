@@ -1,11 +1,11 @@
 use axum::{Json, http::StatusCode};
 
 use crate::{
+    core::keys::{MetadataRawV1, SecretKeyV1},
     server::types::keys::{
         GenerateKeyRequest, GenerateKeyResponse, MetadataBytesRequest, VerifyKeyRequest,
         VerifyKeyResponse,
     },
-    types::keys::{MetadataRawV1, SecretKeyV1},
 };
 
 /// GET /keys/metadata_bytes
