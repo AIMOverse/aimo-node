@@ -1,7 +1,7 @@
 mod chat;
 mod keys;
 mod routes;
-mod state;
+pub mod state;
 mod subscribe;
 
 pub use routes::*;

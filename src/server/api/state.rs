@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{db::StateDb, server::context::ServiceContext};
 
 #[derive(Clone)]
-pub(super) struct ApiState {
+pub struct ApiState {
     pub ctx: ServiceContext,
     pub state_db: Arc<StateDb>,
 }
