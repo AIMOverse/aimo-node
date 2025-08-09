@@ -98,3 +98,9 @@ fn test_verify() {
     let (_, sk) = SecretKeyV1::decode(&sk_string).unwrap();
     assert!(sk.verify_signature().is_ok());
 }
+
+#[test]
+fn test_hash() {
+    let sk = create_sk();
+    assert!(sk.into_hash().is_ok());
+}

@@ -3,8 +3,9 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use serde_json::Value;
 use tokio::time::sleep;
 
+use crate::core::router::Router;
 use crate::core::transport::{Request, Response};
-use crate::router::{Router, local::LocalRouter};
+use crate::router::local::LocalRouter;
 
 async fn echo_delay_service(request: Request, delay_ms: u64) -> serde_json::Result<Value> {
     sleep(Duration::from_micros(delay_ms)).await;

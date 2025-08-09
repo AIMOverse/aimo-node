@@ -5,10 +5,8 @@ use async_trait::async_trait;
 use tokio::sync::{Mutex, mpsc};
 
 use crate::core::transport::{MessagePayload, Request, Response};
-use crate::router::{
-    Router,
-    interface::{ResponseHandler, make_connection},
-};
+
+use crate::core::router::{ResponseHandler, Router, make_connection};
 
 /// The local transport inplemented with tokio
 pub struct LocalRouter {

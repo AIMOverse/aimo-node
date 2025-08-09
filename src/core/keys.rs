@@ -6,6 +6,7 @@ use anyhow::{Ok, anyhow, bail};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
 
 /// Secret key format
@@ -80,6 +81,13 @@ impl SecretKeyV1 {
         }
 
         Ok(())
+    }
+
+    pub fn into_hash(self) -> anyhow::Result<[u8; 32]> {
+        let bytes = SecretKeyRawV1::try_from(self)?.into_bytes();
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes[..]);
+        Ok(hasher.finalize().into())
     }
 }
 
