@@ -19,7 +19,7 @@ use crate::server::api::state::ApiState;
 // #[axum::debug_handler]
 pub async fn completions(
     Extension(payload): Extension<SecretKeyV1>,
-    State(ApiState { ctx }): State<ApiState>,
+    State(ApiState { ctx, .. }): State<ApiState>,
     Json(body): Json<Value>,
 ) -> Result<Response, (StatusCode, String)> {
     let mut body_cloned = body.clone();

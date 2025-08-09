@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     Router, middleware,
     routing::{any, get, post},
@@ -7,6 +9,7 @@ use tower_http::trace::TraceLayer;
 
 use crate::{
     config::ServerOptions,
+    db::StateDb,
     server::{
         api::{
             chat::completions,
@@ -20,7 +23,7 @@ use crate::{
 
 use super::state::ApiState;
 
-pub fn api_v1(options: &ServerOptions, ctx: ServiceContext) -> Router {
+pub fn api_v1(options: &ServerOptions, ctx: ServiceContext, state_db: Arc<StateDb>) -> Router {
     Router::new()
         .route("/ping", get(|| async { "pong" }))
         .route("/keys/metadata_bytes", get(metadata_bytes))
@@ -34,7 +37,7 @@ pub fn api_v1(options: &ServerOptions, ctx: ServiceContext) -> Router {
             "/providers/subscribe",
             any(subscribe::handler).layer(middleware::from_fn(auth_layer)),
         )
-        .with_state(ApiState::new(ctx))
+        .with_state(ApiState::new(ctx, state_db))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())

@@ -30,6 +30,10 @@ pub enum CommandArgs {
             long_help = "Specify a Solana wallet id file (id.json, generated with `solana-keygen new`) the node will be using. Defaults to `~/.config/solana/id.json`."
         )]
         id: Option<PathBuf>,
+
+        /// Path to the state db storage directory.
+        #[arg(long, value_name = "DIR")]
+        state_db_dir: Option<PathBuf>,
     },
 
     /// Generate a secret key for your wallet

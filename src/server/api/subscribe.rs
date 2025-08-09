@@ -17,7 +17,7 @@ use crate::{
 pub async fn handler(
     Extension(payload): Extension<SecretKeyV1>,
     ws: WebSocketUpgrade,
-    State(ApiState { ctx }): State<ApiState>,
+    State(ApiState { ctx, .. }): State<ApiState>,
 ) -> Response {
     ws.on_upgrade(|socket| handle_socket(socket, ctx, payload))
 }

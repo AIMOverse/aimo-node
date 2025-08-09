@@ -4,6 +4,7 @@ use tokio::task::JoinSet;
 
 use crate::{
     config::ServerOptions,
+    db::{self, StateDb},
     router::local::LocalRouter,
     server::{self, ServiceContext},
 };
@@ -15,9 +16,19 @@ enum TaskFinishBehaviour {
 }
 
 /// Run the full node service (server + router)
-pub async fn run_serve(addr: String, port: u16, _id: Option<PathBuf>) {
+pub async fn run_serve(
+    addr: String,
+    port: u16,
+    _id: Option<PathBuf>,
+    state_db_dir: Option<PathBuf>,
+) {
+    let state_db = Arc::new(
+        StateDb::load_or_create(&state_db_dir.unwrap_or(db::default_directory()))
+            .expect("Failed to create state db"),
+    );
     let server_options = ServerOptions { addr, port };
     let router_instance = Arc::new(LocalRouter::new());
+
     let mut tasks_js = JoinSet::new();
 
     // The router task
@@ -33,7 +44,7 @@ pub async fn run_serve(addr: String, port: u16, _id: Option<PathBuf>) {
     tasks_js.spawn(async move {
         let ctx = ServiceContext::new(router_instance);
         tracing::info!("API server task created.");
-        server::serve(&server_options, ctx).await;
+        server::serve(&server_options, ctx, state_db).await;
 
         // This should run forever,
         TaskFinishBehaviour::Abort("API server aborted unexpectedly")

@@ -11,6 +11,7 @@ use crate::{
 mod cli;
 mod config;
 mod core;
+mod db;
 mod helpers;
 mod node;
 mod router;
@@ -25,8 +26,13 @@ async fn main() {
 
     match args.command {
         // aimo serve
-        CommandArgs::Serve { port, addr, id } => {
-            run_serve(addr, port, id).await;
+        CommandArgs::Serve {
+            port,
+            addr,
+            id,
+            state_db_dir,
+        } => {
+            run_serve(addr, port, id, state_db_dir).await;
         }
 
         // aimo keygen

@@ -1,14 +1,17 @@
+use std::sync::Arc;
+
 use axum::Router;
 
 use crate::{
     config::ServerOptions,
+    db::StateDb,
     server::{api::api_v1, context::ServiceContext, grpc::grpc_v1},
 };
 
-pub async fn serve(options: &ServerOptions, ctx: ServiceContext) {
+pub async fn serve(options: &ServerOptions, ctx: ServiceContext, state_db: Arc<StateDb>) {
     let router = Router::new()
         // Setup router groups
-        .nest("/api/v1", api_v1(options, ctx))
+        .nest("/api/v1", api_v1(options, ctx, state_db))
         .nest("/grpc/v1", grpc_v1());
 
     tracing::info!("Server instance built");

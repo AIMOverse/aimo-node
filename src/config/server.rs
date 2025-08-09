@@ -11,7 +11,7 @@ pub struct ServerOptions {
 impl Default for ServerOptions {
     /// Server runs at `0.0.0.0:8000` by default
     fn default() -> Self {
-        ServerOptions {
+        Self {
             addr: String::from("0.0.0.0"),
             port: 8000,
         }
