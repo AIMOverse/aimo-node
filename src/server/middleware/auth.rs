@@ -27,12 +27,16 @@ pub async fn auth_layer(
         )
     })?;
 
-    if state_db.is_key_revoked(&payload).map_err(|err| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to check key revocation: {err}"),
-        )
-    })? {
+    if state_db
+        .revocation
+        .is_key_revoked(&payload)
+        .map_err(|err| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to check key revocation: {err}"),
+            )
+        })?
+    {
         return Err((StatusCode::UNAUTHORIZED, "Key already revoked".to_string()));
     }
 

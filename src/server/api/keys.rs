@@ -105,6 +105,7 @@ pub async fn revoke_key(
     };
 
     state_db
+        .revocation
         .revoke_key(event)
         .map(|_| Json(json!({})))
         .map_err(|err| {
